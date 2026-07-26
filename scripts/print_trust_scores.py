@@ -296,6 +296,7 @@ async def main() -> None:
     'amount':'15.0'}
     record_rank = await run_recommendation_record(query)
     print(f"record_rank={record_rank}")
+    return record_rank
 
 
 if __name__ == "__main__":
