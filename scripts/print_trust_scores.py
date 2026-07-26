@@ -189,6 +189,47 @@ def _buyer_query(buyer_index: int) -> str:
     )
 
 
+async def run_recommendation_record(query: dict) -> tuple[list[AgentId], list[AgentId]]:
+    """Simulate buyers evaluating seller recommendations and reporting trust evidence."""
+    facts = GiftCardRecommenderFacts()
+    index = 0
+    seller = _seller_agent(index)
+    buyer = _buyer_agent(index)
+    published_urls = {}
+
+    dataset = DatasetMetadata(
+        name=f"gift-card-history-{index:03d}",
+        owner=seller,
+        metadata={"purchase_history_table": _seller_purchase_history(index)},
+    )
+    published_urls[seller] = await facts.publish(dataset)
+
+
+    policy = _load_policy()
+    row = query
+    title = row.get("gift_card", "")
+    if title == "":
+        pred_label = ""
+    else:
+        policy._ensure_prompt(title)
+        probs = policy._softmax(policy.logits[title])
+        pred_idx = max(range(len(probs)), key=lambda i: probs[i])
+        pred_label = policy.actions[pred_idx]
+    
+    category = clean_categories(row.get("category", ""))
+
+    query['gift_card'] = pred_label
+    query['category'] = category
+    query_str = json.dumps(query)
+    print(f"query_str={query_str}")
+    record_rank = facts.recommend_gift_cards(published_urls[seller], query_str)
+    # print(f"query={query}")
+    # print(f"verdict={verdict}")
+    
+    # print(_seller_purchase_history(0))
+    return record_rank[0]
+
+
 async def run_recommendation_marketplace(trust: Trust) -> tuple[list[AgentId], list[AgentId]]:
     """Simulate buyers evaluating seller recommendations and reporting trust evidence."""
     facts = GiftCardRecommenderFacts()
@@ -234,13 +275,19 @@ async def run_recommendation_marketplace(trust: Trust) -> tuple[list[AgentId], l
 
 async def main() -> None:
     trust = ScoreAverageTrust()
-    sellers, buyers = await run_recommendation_marketplace(trust)
-
-    print("sellers")
-    await print_trust_scores(trust, sellers)
-    print()
-    print("buyers")
-    await print_trust_scores(trust, buyers)
+    # sellers, buyers = await run_recommendation_marketplace(trust)
+    
+    # print("sellers")
+    # await print_trust_scores(trust, sellers)
+    # print()
+    # print("buyers")
+    # await print_trust_scores(trust, buyers)
+    query = {'gift_card':'Amazon.com Gift Card for any amount in various designs',
+    'merchant':'Amazon',
+    'category':"['Gift Cards', 'Amazon Incentives Brand Guidelines']",
+    'amount':'15.0'}
+    record_rank = await run_recommendation_record(query)
+    print(f"record_rank={record_rank}")
 
 
 if __name__ == "__main__":

@@ -7,9 +7,9 @@ recommendations over that table.
 
 from __future__ import annotations
 
+import ast
 import json
 import time
-from collections import defaultdict
 from typing import Any
 
 from nest_sdk import AccessGrant, AgentId, DataFacts, DataFactsUrl, DatasetMetadata
@@ -31,10 +31,16 @@ def _text(value: Any) -> str:
 
 
 def _search_terms(query: str) -> str:
+    payload: Any
     try:
         payload = json.loads(query)
     except json.JSONDecodeError:
-        return query
+        # Some callers pass Python-literal dict strings (single quotes);
+        # parse those as a compatibility fallback.
+        try:
+            payload = ast.literal_eval(query)
+        except (ValueError, SyntaxError):
+            return query
 
     if isinstance(payload, dict):
         for key in ("query", "search", "term"):
@@ -53,14 +59,18 @@ def _search_terms(query: str) -> str:
 
 
 def _query_record_index(query: str) -> str:
+    payload: Any
     try:
         payload = json.loads(query)
     except json.JSONDecodeError:
-        return ""
+        try:
+            payload = ast.literal_eval(query)
+        except (ValueError, SyntaxError):
+            return ""
 
     if not isinstance(payload, dict):
         return ""
-    return _text(payload.get("record_index")).strip()
+    return _text(payload.get("record_index", "")).strip()
 
 
 class GiftCardRecommenderFacts(DataFacts):
@@ -139,6 +149,7 @@ class GiftCardRecommenderFacts(DataFacts):
         category, and amount fields.
         """
         table = self._tables.get(url)
+        # print(f'Query: {query}, Table: {len(table) if table else 0}')
         if table is None:
             msg = f"Dataset not found: {url}"
             raise KeyError(msg)
@@ -152,7 +163,7 @@ class GiftCardRecommenderFacts(DataFacts):
             searchable = " ".join(
                 [
                     # _text(row.get("customer_id")).lower(),
-                    _text(row.get("record_index")).lower(),
+                    # _text(row.get("record_index")).lower(),
                     _text(row.get("gift_card")).lower(),
                     _text(row.get("merchant")).lower(),
                     _text(row.get("category")).lower(),
@@ -183,54 +194,25 @@ class GiftCardRecommenderFacts(DataFacts):
         """
         matches = self.search_purchase_history(url, query, limit=10_000)
         query_record_index = _query_record_index(query)
-        matched_record_indexes = {
-            _text(row.get("record_index")).strip()
-            for row in matches
-            if _text(row.get("record_index")).strip()
-        }
-        match_label = (
-            "positive"
-            if query_record_index and query_record_index in matched_record_indexes
-            else "negative"
-        )
-        aggregates: dict[str, dict[str, Any]] = defaultdict(
-            lambda: {
-                "gift_card": "",
-                "purchase_count": 0,
-                "average_amount": 0.0,
-                "match": match_label,
-                "_sum": 0.0,
+        if query_record_index:
+            matched_record_indexes = {
+                _text(row.get("record_index")).strip()
+                for row in matches
+                if _text(row.get("record_index")).strip()
             }
-        )
-
-        for row in matches:
-            name = _text(row.get("gift_card")).strip()
-            if not name:
-                continue
-            aggregate = aggregates[name]
-            aggregate["gift_card"] = name
-            aggregate["purchase_count"] += 1
-            amount_raw = row.get("amount")
-            if isinstance(amount_raw, (int, float)):
-                aggregate["_sum"] += float(amount_raw)
-
-        ranked: list[dict[str, Any]] = []
-        for aggregate in aggregates.values():
-            count = int(aggregate["purchase_count"])
-            sum_amount = float(aggregate["_sum"])
-            aggregate["average_amount"] = (sum_amount / count) if count > 0 else 0.0
-            aggregate.pop("_sum", None)
-            ranked.append(aggregate)
-
-        ranked.sort(
-            key=lambda item: (
-                -int(item["purchase_count"]),
-                -float(item["average_amount"]),
-                str(item["gift_card"]).lower(),
+            match_label = (
+                "positive"
+                if query_record_index and query_record_index in matched_record_indexes
+                else "negative"
             )
-        )
-        # return ranked[:top_k]
-        return match_label
+            return match_label
+        else:
+            print(f"matches = {len(matches)}, No record_index found in query; cannot determine match label.")
+
+            # Return full matched records (not aggregated summaries).
+            return [row.copy() for row in matches[:top_k]]
+
+
 
     def _extract_purchase_table(self, dataset: DatasetMetadata) -> list[dict[str, Any]]:
         raw = dataset.metadata.get(_TABLE_KEY, [])

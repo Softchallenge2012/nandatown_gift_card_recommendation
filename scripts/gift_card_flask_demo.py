@@ -2,86 +2,59 @@
 """Flask demo for the gift card lookup website.
 
 Run with:
-    uv run --with flask python scripts/gift_card_flask_demo.py
+  PYTHONPATH=packages/nest-plugins-reference:packages/nest-core:packages/nest-sdk:scripts \
+  python scripts/gift_card_flask_demo.py
 """
 
 from __future__ import annotations
 
+import asyncio
 import time
-import csv
-from pathlib import Path
+from typing import Any
 
 from flask import Flask, render_template_string, request
+from print_trust_scores import run_recommendation_record
 
 
-BASE_DIR = Path(__file__).resolve().parents[1]
-CSV_PATH = BASE_DIR / "data" / "gift_card" / "test_gift.csv"
+def _prepare_query(form_data: dict[str, str]) -> dict[str, Any]:
+  category_raw = form_data.get("category", "").strip()
+  if category_raw and not category_raw.startswith("["):
+    # print_trust_scores.clean_categories expects a Python-list string.
+    category_for_model = str(["Gift Cards", category_raw])
+  else:
+    category_for_model = category_raw
 
-
-def _normalize_text(value: object) -> str:
-    if value is None:
-        return ""
-    return str(value).strip().casefold()
-
-
-def _normalize_amount(value: object) -> str:
-    text = str(value).strip()
-    if not text:
-        return ""
+  amount_raw = form_data.get("amount", "").strip()
+  amount_value: Any = amount_raw
+  if amount_raw:
     try:
-        amount = float(text)
+      amount_value = float(amount_raw)
     except ValueError:
-        return text.casefold()
-    if amount.is_integer():
-        return f"{int(amount)}"
-    return f"{amount:g}"
+      amount_value = amount_raw
+
+  return {
+    "gift_card": form_data.get("gift_card", "").strip(),
+    "merchant": form_data.get("merchant", "").strip(),
+    "category": category_for_model,
+    "amount": amount_value,
+  }
 
 
-def _load_rows() -> list[dict[str, str]]:
-    rows: list[dict[str, str]] = []
-    with CSV_PATH.open(newline="", encoding="utf-8") as handle:
-        reader = csv.DictReader(handle)
-        for record_index, row in enumerate(reader):
-            record = {key: value or "" for key, value in row.items()}
-            record["record_index"] = str(record_index)
-            rows.append(record)
-    return rows
+def _lookup_record(form_data: dict[str, str]) -> tuple[dict[str, Any] | None, float]:
+  start = time.perf_counter()
+  query = _prepare_query(form_data)
 
+  result = asyncio.run(run_recommendation_record(query))
 
-def _lookup_record(form_data: dict[str, str]) -> tuple[dict[str, str] | None, float]:
-    start = time.perf_counter()
-    rows = _load_rows()
+  if isinstance(result, dict):
+    record = dict(result)
+  elif isinstance(result, list) and result and isinstance(result[0], dict):
+    record = dict(result[0])
+  else:
+    record = {"result": result}
 
-    required = {
-        "gift_card": _normalize_text(form_data.get("gift_card", "")),
-        "merchant": _normalize_text(form_data.get("merchant", "")),
-        "category": _normalize_text(form_data.get("category", "")),
-        "amount": _normalize_amount(form_data.get("amount", "")),
-    }
-
-    matches = [
-        row
-        for row in rows
-        if _normalize_text(row.get("gift_card", "")) == required["gift_card"]
-        and _normalize_text(row.get("merchant", "")) == required["merchant"]
-        and _normalize_text(row.get("category", "")) == required["category"]
-        and _normalize_amount(row.get("amount", "")) == required["amount"]
-    ]
-
-    result: dict[str, str] | None = None
-    if matches:
-        row = matches[0]
-        result = {
-            "record_index": str(row.get("record_index", "")),
-            "gift_card": str(row.get("gift_card", "")),
-            "merchant": str(row.get("merchant", "")),
-            "category": str(row.get("category", "")),
-            "amount": str(row.get("amount", "")),
-            "notes": str(row.get("notes", "")),
-        }
-
-    elapsed = time.perf_counter() - start
-    return result, elapsed
+  elapsed = time.perf_counter() - start
+  return record, elapsed
 
 
 app = Flask(__name__)
@@ -334,11 +307,11 @@ PAGE = """
         <div>
           <p class="eyebrow">Flask hosted demo</p>
           <h1>Gift card record lookup</h1>
-          <p class="lede">Enter <strong>gift_card</strong>, <strong>merchant</strong>, <strong>category</strong>, and <strong>amount</strong> to retrieve the full matching row from <code>data/gift_card/test_gift.csv</code>. The result panel shows every field in the record plus the request time.</p>
+          <p class="lede">Enter <strong>gift_card</strong>, <strong>merchant</strong>, <strong>category</strong>, and <strong>amount</strong>. The demo sends this input to <code>run_recommendation_record</code> and renders the full returned record.</p>
         </div>
         <div class="meta">
           <div class="pill">Hosted with Flask</div>
-          <div class="pill">Exact row match from CSV</div>
+          <div class="pill">Backed by run_recommendation_record</div>
         </div>
       </section>
 
@@ -346,8 +319,8 @@ PAGE = """
         <article class="card">
           <div class="card-header">
             <p class="eyebrow">Input form</p>
-            <h2 class="section-title">Search the test table</h2>
-            <p class="section-copy">Use the same four fields from the CSV row you want to inspect. The demo returns the complete row, including record index and notes.</p>
+            <h2 class="section-title">Search with model input</h2>
+            <p class="section-copy">Use four fields as query input. The server calls run_recommendation_record and returns the full output record.</p>
           </div>
           <div class="card-body">
             <form method="post">
@@ -378,7 +351,7 @@ PAGE = """
         <article class="card">
           <div class="card-header">
             <p class="eyebrow">Result field</p>
-            <h2 class="section-title">Matched CSV record</h2>
+            <h2 class="section-title">Recommendation result</h2>
           </div>
           <div class="card-body">
             <div class="result-banner">
@@ -386,19 +359,16 @@ PAGE = """
               <div class="time">Total time: {{ elapsed_ms }} ms</div>
             </div>
 
-            {% if record %}
+            {% if record_items %}
               <table>
                 <tbody>
-                  <tr><th>record_index</th><td>{{ record.record_index }}</td></tr>
-                  <tr><th>gift_card</th><td>{{ record.gift_card }}</td></tr>
-                  <tr><th>merchant</th><td>{{ record.merchant }}</td></tr>
-                  <tr><th>category</th><td>{{ record.category }}</td></tr>
-                  <tr><th>amount</th><td>{{ record.amount }}</td></tr>
-                  <tr><th>notes</th><td>{{ record.notes }}</td></tr>
+                  {% for key, value in record_items %}
+                    <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
+                  {% endfor %}
                 </tbody>
               </table>
             {% else %}
-              <p class="empty">No matching row was found. Check the four fields and try again.</p>
+              <p class="empty">No result returned. Check the four fields and try again.</p>
             {% endif %}
           </div>
         </article>
@@ -411,9 +381,9 @@ PAGE = """
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    record = None
+    record_items: list[tuple[str, Any]] = []
     elapsed_ms = "0.00"
-    message = "Enter a lookup query to inspect a full CSV record."
+    message = "Enter input and submit to run recommendation lookup."
     form_values = {"gift_card": "", "merchant": "", "category": "", "amount": ""}
 
     if request.method == "POST":
@@ -423,16 +393,20 @@ def index():
             "category": request.form.get("category", ""),
             "amount": request.form.get("amount", ""),
         }
-        record, elapsed = _lookup_record(form_values)
-        elapsed_ms = f"{elapsed * 1000:.2f}"
-        if record is None:
-            message = "No matching row found in data/gift_card/test_gift.csv."
-        else:
-            message = f"Matched record_index {record['record_index']} from data/gift_card/test_gift.csv."
+        try:
+            record, elapsed = _lookup_record(form_values)
+            elapsed_ms = f"{elapsed * 1000:.2f}"
+            if record:
+                record_items = list(record.items())
+                message = "Recommendation lookup succeeded. Showing the full returned record."
+            else:
+                message = "Recommendation lookup returned no record."
+        except Exception as exc:  # pragma: no cover - demo UI error path
+            message = f"Recommendation lookup failed: {exc}"
 
     return render_template_string(
         PAGE,
-        record=record,
+        record_items=record_items,
         elapsed_ms=elapsed_ms,
         message=message,
         form_values=form_values,
