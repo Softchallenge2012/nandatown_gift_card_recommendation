@@ -258,7 +258,7 @@ async def run_recommendation_record(query: dict[str, object]) -> dict[str, objec
     if isinstance(record_rank, dict):
         return dict(record_rank)
 
-    return {"result": record_rank}
+    return record_rank
 
 
 async def run_recommendation_marketplace(trust: Trust) -> tuple[list[AgentId], list[AgentId]]:
