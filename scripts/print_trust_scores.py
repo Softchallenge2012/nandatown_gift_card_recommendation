@@ -189,8 +189,8 @@ def _buyer_query(buyer_index: int) -> str:
     )
 
 
-async def run_recommendation_record(query: dict) -> tuple[list[AgentId], list[AgentId]]:
-    """Simulate buyers evaluating seller recommendations and reporting trust evidence."""
+async def run_recommendation_record(query: dict[str, object]) -> dict[str, object] | None:
+    """Run one recommendation query and return a single full record when available."""
     facts = GiftCardRecommenderFacts()
     index = 0
     seller = _seller_agent(index)
@@ -223,11 +223,19 @@ async def run_recommendation_record(query: dict) -> tuple[list[AgentId], list[Ag
     query_str = json.dumps(query)
     print(f"query_str={query_str}")
     record_rank = facts.recommend_gift_cards(published_urls[seller], query_str)
-    # print(f"query={query}")
-    # print(f"verdict={verdict}")
-    
-    # print(_seller_purchase_history(0))
-    return record_rank[0]
+
+    if isinstance(record_rank, list):
+        if not record_rank:
+            return None
+        first = record_rank[0]
+        if isinstance(first, dict):
+            return dict(first)
+        return {"result": first}
+
+    if isinstance(record_rank, dict):
+        return dict(record_rank)
+
+    return {"result": record_rank}
 
 
 async def run_recommendation_marketplace(trust: Trust) -> tuple[list[AgentId], list[AgentId]]:

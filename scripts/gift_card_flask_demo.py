@@ -46,7 +46,9 @@ def _lookup_record(form_data: dict[str, str]) -> tuple[dict[str, Any] | None, fl
 
   result = asyncio.run(run_recommendation_record(query))
 
-  if isinstance(result, dict):
+  if result is None:
+    record = None
+  elif isinstance(result, dict):
     record = dict(result)
   elif isinstance(result, list) and result and isinstance(result[0], dict):
     record = dict(result[0])
