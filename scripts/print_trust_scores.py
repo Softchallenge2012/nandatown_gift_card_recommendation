@@ -206,7 +206,7 @@ async def run_recommendation_record(query: dict[str, object]) -> dict[str, objec
 
 
     policy = _load_policy()
-    row = query
+    row = dict(query)
     title = row.get("gift_card", "")
     if title == "":
         pred_label = ""
@@ -218,11 +218,34 @@ async def run_recommendation_record(query: dict[str, object]) -> dict[str, objec
     
     category = clean_categories(row.get("category", ""))
 
-    query['gift_card'] = pred_label
-    query['category'] = category
-    query_str = json.dumps(query)
-    print(f"query_str={query_str}")
-    record_rank = facts.recommend_gift_cards(published_urls[seller], query_str)
+    # Try a few increasingly permissive queries so UI calls do not fail
+    # with empty results when normalization is too strict.
+    transformed = dict(row)
+    transformed["gift_card"] = pred_label
+    transformed["category"] = category
+
+    attempts: list[dict[str, object]] = [transformed]
+
+    original_card = str(row.get("gift_card", "")).strip()
+    if original_card and original_card != pred_label:
+        with_original_card = dict(transformed)
+        with_original_card["gift_card"] = original_card
+        attempts.append(with_original_card)
+
+    # Last fallback: drop amount constraint, which is often sparsely populated.
+    no_amount = dict(attempts[-1])
+    no_amount["amount"] = ""
+    attempts.append(no_amount)
+
+    record_rank: object = []
+    for attempt in attempts:
+        query_str = json.dumps(attempt)
+        print(f"query_str={query_str}")
+        record_rank = facts.recommend_gift_cards(published_urls[seller], query_str)
+        if isinstance(record_rank, list) and record_rank:
+            break
+        if isinstance(record_rank, dict):
+            break
 
     if isinstance(record_rank, list):
         if not record_rank:
