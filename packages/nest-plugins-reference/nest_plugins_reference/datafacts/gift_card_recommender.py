@@ -206,11 +206,9 @@ class GiftCardRecommenderFacts(DataFacts):
                 else "negative"
             )
             return match_label
-        else:
-            print(f"matches = {len(matches)}, No record_index found in query; cannot determine match label.")
 
-            # Return full matched records (not aggregated summaries).
-            return [row.copy() for row in matches[:top_k]]
+        # Return full matched records (not aggregated summaries).
+        return [row.copy() for row in matches[:top_k]]
 
 
 

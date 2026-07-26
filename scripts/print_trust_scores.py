@@ -282,7 +282,7 @@ async def run_recommendation_marketplace(trust: Trust) -> tuple[list[AgentId], l
 
 
 async def main() -> None:
-    trust = ScoreAverageTrust()
+    # trust = ScoreAverageTrust()
     # sellers, buyers = await run_recommendation_marketplace(trust)
     
     # print("sellers")

@@ -43,6 +43,7 @@ def _prepare_query(form_data: dict[str, str]) -> dict[str, Any]:
 def _lookup_record(form_data: dict[str, str]) -> tuple[dict[str, Any] | None, float]:
   start = time.perf_counter()
   query = _prepare_query(form_data)
+  print(f"Prepared query: {query}")
 
   result = asyncio.run(run_recommendation_record(query))
 
