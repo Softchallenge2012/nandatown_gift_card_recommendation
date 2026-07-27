@@ -8,3 +8,10 @@ Traditional text mining faces three major hurdles: polysemy (words with multiple
 By leveraging the natural language capabilities of Large Language Models (LLMs), we can bypass legacy preprocessing entirely. LLMs directly normalize raw text, streamlining unstructured textual data into clean, structured categorical features.
 
 To demonstrate this approach, I applied an LLM combined with reinforcement learning to an Amazon Gift Card dataset. The model classified gift card titles into eight distinct categories, incorporating key metadata—such as title, category, and price—for search optimization. Tested across a dataset of 1,000 records (encompassing 100 sellers and 10 buyers), the pipeline achieved 100% accuracy, demonstrating that LLM-driven normalization can simplify complex text mining into an efficient categorical workflow.
+
+
+## Install ##
+pip install "nest-core[full]"
+
+## Run ##
+PYTHONPATH=packages/nest-plugins-reference:scripts python scripts/print_trust_scores.py
