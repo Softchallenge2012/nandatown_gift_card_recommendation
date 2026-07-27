@@ -1,8 +1,7 @@
 
 <div align="center">
-  <img src="https://github.com/Softchallenge2012/nandatown_gift_card_recommendation/blob/main/iterative-research-graph/dist/assets/ui.png"></img>
+  <img src="https://github.com/Softchallenge2012/nandatown_gift_card_recommendation/blob/main/ui.png"></img>
 </div>
-
 
 Traditional text mining faces three major hurdles: polysemy (words with multiple meanings), synonymy (different words sharing the same meaning), and high dimensionality (excessive vocabulary size). Conventional pipelines typically rely on complex preprocessing steps like TF-IDF, stemming, and stop-word removal to handle these issues.
 
