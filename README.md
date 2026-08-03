@@ -3,7 +3,7 @@
   <img src="https://github.com/Softchallenge2012/nandatown_gift_card_recommendation/blob/main/ui.png"></img>
 </div>
 
-Traditional text mining faces three major hurdles: polysemy (words with multiple meanings), synonymy (different words sharing the same meaning), and high dimensionality (excessive vocabulary size). Conventional pipelines typically rely on complex preprocessing steps like TF-IDF, stemming, and stop-word removal to handle these issues. Alternatively, text can be preprocessed using embedding models. However, these models are typically large, difficult to customize for specific domains, and produce non-human-readable outputs.
+Traditional text mining faces three major hurdles: polysemy (words with multiple meanings), synonymy (different words sharing the same meaning), and high dimensionality (excessive vocabulary size). Conventional pipelines typically rely on complex preprocessing steps like TF-IDF, stemming, and stop-word removal to handle these issues. But, this simulation is far away from the reality. Alternatively, text can be preprocessed using embedding models. However, these models are typically large, difficult to customize for specific domains, and produce non-human-readable outputs.
 
 By leveraging the natural language capabilities of Large Language Models (LLMs), we can bypass legacy preprocessing entirely. LLMs directly normalize raw text, streamlining unstructured textual data into clean, structured categorical features.
 
